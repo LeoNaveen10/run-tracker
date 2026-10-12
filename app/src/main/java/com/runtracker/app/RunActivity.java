@@ -11,9 +11,9 @@ import android.widget.*;
 import org.json.*;
 import java.util.Locale;
 
-/** Dedicated recording page: distance, live speed, elapsed time and the route. */
+/** Dedicated recording page: distance, current pace, elapsed time and the route. */
 public class RunActivity extends Activity {
- private TextView distance,speed,time,status;
+ private TextView distance,currentPace,time,status;
  private Button pause;
  private RouteMapView map;
  private SharedPreferences prefs;
@@ -41,9 +41,9 @@ public class RunActivity extends Activity {
   distance=label("0.000",58,MainActivity.LIME);distance.setGravity(Gravity.CENTER);distance.setFontFeatureSettings("tnum");stats.addView(distance,new LinearLayout.LayoutParams(-1,-2));
   TextView km=label("DISTANCE · KM",10,MainActivity.MUTED);km.setGravity(Gravity.CENTER);km.setLetterSpacing(.13f);stats.addView(km);
   LinearLayout lower=new LinearLayout(this);LinearLayout.LayoutParams rowParams=new LinearLayout.LayoutParams(-1,-2);rowParams.topMargin=dp(16);stats.addView(lower,rowParams);
-  LinearLayout speedCell=column();speedCell.setGravity(Gravity.CENTER);speed=metric("—",30);speedCell.addView(speed,new LinearLayout.LayoutParams(-1,dp(42)));speedCell.addView(label("SPEED · KM/H",10,MainActivity.MUTED));
+  LinearLayout paceCell=column();paceCell.setGravity(Gravity.CENTER);currentPace=metric("—",30);paceCell.addView(currentPace,new LinearLayout.LayoutParams(-1,dp(42)));paceCell.addView(label("CURRENT PACE · MIN/KM",10,MainActivity.MUTED));
   LinearLayout timeCell=column();timeCell.setGravity(Gravity.CENTER);time=metric("00:00:00",26);timeCell.addView(time,new LinearLayout.LayoutParams(-1,dp(42)));timeCell.addView(label("RUN TIME",10,MainActivity.MUTED));
-  lower.addView(speedCell,new LinearLayout.LayoutParams(0,-2,1));
+  lower.addView(paceCell,new LinearLayout.LayoutParams(0,-2,1));
   View divider=new View(this);divider.setBackgroundColor(Color.rgb(53,65,80));LinearLayout.LayoutParams dividerParams=new LinearLayout.LayoutParams(dp(1),dp(48));dividerParams.setMargins(dp(10),0,dp(10),0);lower.addView(divider,dividerParams);
   lower.addView(timeCell,new LinearLayout.LayoutParams(0,-2,1));root.addView(stats);
   FrameLayout mapFrame=new FrameLayout(this);mapFrame.setBackground(shape(MainActivity.CARD,22));mapFrame.setClipToOutline(true);
@@ -67,7 +67,7 @@ public class RunActivity extends Activity {
   if(!paused && !waiting) elapsed+=Math.max(0,SystemClock.elapsedRealtime()-prefs.getLong("segment",SystemClock.elapsedRealtime()));
   distance.setText(String.format(Locale.US,"%.3f",prefs.getFloat("meters",0)/1000.0));time.setText(RunMath.clock(elapsed));
   long speedFix=prefs.getLong("speed_fix_elapsed",0),age=SystemClock.elapsedRealtime()-speedFix;
-  speed.setText(paused?"0.0":waiting || speedFix==0 || age>5000 || age<0?"—":String.format(Locale.US,"%.1f",prefs.getFloat("speed_kmh",0)));
+  currentPace.setText(paused || waiting || speedFix==0 || age>5000 || age<0?"—":RunMath.currentPace(prefs.getFloat("speed_kmh",0)));
   pause.setText(paused?"▶  RESUME":"Ⅱ  PAUSE");
   long fix=prefs.getLong("last_fix_elapsed",0);
   boolean stale=fix!=0 && SystemClock.elapsedRealtime()-fix>5000;

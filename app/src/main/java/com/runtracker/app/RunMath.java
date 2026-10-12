@@ -1,6 +1,13 @@
 package com.runtracker.app;
 import java.util.Locale;
 public final class RunMath {
+ public static String currentPace(double speedKmh) {
+  if(!Double.isFinite(speedKmh) || speedKmh<=0) return "—";
+  double seconds=3600/speedKmh;
+  if(!Double.isFinite(seconds) || seconds>Long.MAX_VALUE) return "—";
+  long rounded=Math.round(seconds);
+  return String.format(Locale.US,"%d:%02d",rounded/60,rounded%60);
+ }
  public static double speedKmh(double metersPerSecond) {
   return Double.isFinite(metersPerSecond) && metersPerSecond>=0?metersPerSecond*3.6:0;
  }
