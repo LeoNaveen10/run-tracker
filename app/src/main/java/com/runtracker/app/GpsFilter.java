@@ -6,13 +6,14 @@ public final class GpsFilter {
  private long time;
  private boolean anchored;
  public static final class Fix {
-  public double distance;
+  public double distance,speed;
   public boolean record, jump, breakSegment;
  }
  public void reset() { anchored=false; }
  public Fix update(double lat,double lon,double a,double speed,long ms) {
   Fix f=new Fix();
   if(!Double.isFinite(lat)||!Double.isFinite(lon)||!Double.isFinite(a)||Math.abs(lat)>90||Math.abs(lon)>180||a<=0||a>20) return f;
+  if(Double.isFinite(speed) && (speed<0 || speed>12)) { f.jump=true;return f; }
   if(!anchored) { anchor(lat,lon,a,ms); f.record=true; return f; }
   if(ms<=time) return f;
   double seconds=(ms-time)/1000.0;
@@ -23,7 +24,7 @@ public final class GpsFilter {
   if(Double.isFinite(speed)&&speed<.35) { anchor(lat,lon,a,ms); return f; }
   double threshold=Math.max(.5,Math.min(1.2,Math.min(accuracy,a)*.15));
   if(delta<threshold) return f;
-  f.distance=delta; f.record=true; anchor(lat,lon,a,ms); return f;
+  f.distance=delta; f.speed=delta/seconds; f.record=true; anchor(lat,lon,a,ms); return f;
  }
  private void anchor(double lat,double lon,double a,long ms) { latitude=lat;longitude=lon;accuracy=a;time=ms;anchored=true; }
  public static double distance(double lat1,double lon1,double lat2,double lon2) {

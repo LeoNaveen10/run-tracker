@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Build-only toolchain. Java 21, Python 3, curl and unzip are required.
+# Build and JVM test tools. Java 21, Python 3, curl and unzip are required.
 root="${ANDROID_SDK_ROOT:-/workspace/android-sdk}"
 mkdir -p "$root/platforms" "$root/build-tools" /workspace/android-tools
 temporary="$(mktemp -d /tmp/run-tracker-setup.XXXXXX)"
@@ -24,4 +24,8 @@ if [ ! -f /workspace/android-tools/ecj.jar ]; then
     mv "$temporary/ecj.jar" /workspace/android-tools/ecj.jar
 fi
 java -version
+if [ ! -f /workspace/android-tools/json.jar ]; then
+    download https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar "$temporary/json.jar" "$(curl -fsSL https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar.sha1)"
+    mv "$temporary/json.jar" /workspace/android-tools/json.jar
+fi
 "$root/build-tools/35.0.0/aapt2" version

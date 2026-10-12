@@ -6,15 +6,17 @@ No accounts, backend, advertising or paid API keys are needed.
 
 ## Install
 
-Download [`downloads/RunTracker-0.2.0.apk`](downloads/RunTracker-0.2.0.apk) and open
+Download [`downloads/RunTracker-0.3.0.apk`](downloads/RunTracker-0.3.0.apk) and open
 it on your phone. Allow installation from the app opening it if Android asks.
 Grant **precise location**, enable GPS and use it outdoors. This is a test APK,
-signed with the same debug key as version 0.1.0: install over that version to
+signed with the same debug key as earlier versions: install over your existing app to
 preserve your completed run history. Do not uninstall first.
 
 ## Running
 
-- Tap **Start run**. Time starts after the first usable GPS fix, not while waiting
+- Tap **Start run** to open a dedicated recording page with only **live speed
+  (km/h), distance (km), elapsed time and the map**, plus pause/resume and finish
+  controls. Time starts after the first usable GPS fix, not while waiting
   for the receiver to acquire a signal.
 - GPS requests use zero minimum time and zero minimum movement, accepting fixes
   at the receiver's native rate (typically around one per second). Screen metrics
@@ -24,8 +26,12 @@ preserve your completed run history. Do not uninstall first.
   route segments are separated so movement during a pause does not add distance.
 - View live and saved routes. Drag to pan, pinch or use +/- to zoom, and tap
   **Fit route** to recenter. Tap a run in history to open its details.
-- Recent GPS fix age, reported position accuracy and satellites used in the fix
-  help identify poor reception.
+- Live speed uses GPS-reported speed where available, falling back to movement
+  between accepted fixes. A stale or weak GPS signal shows an unavailable speed
+  rather than an old reading. The run page keeps the screen on while visible.
+- Delete saved runs through the **⋮** menu on a recent-run card or **Delete run**
+  in its details. Confirmation is required. The run, route, dashboard preview
+  and weekly total update together; interrupted/active recording data is preserved.
 
 ## Reliability and GPS limits
 
@@ -87,7 +93,8 @@ separate protected release-signing setup; the APK here is a debug-signed build.
 
 ## Validation
 
-The 26 JVM checks cover run time, pace, successive running fixes, stationary
+The 40 JVM checks cover run time, pace, speed units, saved-run deletion,
+appended/duplicate/changed-history safety, successive running fixes, stationary
 drift, jumps, recovery after a rejected fix, duplicate timestamps, reception
 gaps, invalid coordinates, pause/reset boundaries, geodesic distance and map
 projection. The build checks the APK signature and metadata. A map tile request

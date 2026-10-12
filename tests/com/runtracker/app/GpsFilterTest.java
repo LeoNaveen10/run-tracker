@@ -22,6 +22,9 @@ public class GpsFilterTest {
   close(77,RunMath.longitude(RunMath.worldX(77)),.000001,"Map longitude round trip");
   close(13,RunMath.latitude(RunMath.worldY(13)),.000001,"Map latitude round trip");
   test(Double.isFinite(RunMath.worldY(90)),"Map projection handles poles");
+  filter.reset();test(filter.update(13,77,3,100,1000).jump,"Invalid speed cannot seed a fresh run");
+  filter.reset();filter.update(13,77,3,Double.NaN,1000);
+  close(3,filter.update(13+3/111195.0,77,3,Double.NaN,2000).speed,.05,"Live speed falls back to distance divided by the fix interval");
   System.out.println(checks+" GPS and map checks passed");
  }
  private static void test(boolean condition,String name) { checks++;if(!condition) throw new AssertionError(name); }

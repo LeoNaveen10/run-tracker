@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
  private RouteMapView map;
  private SharedPreferences prefs;
  private String lastHistory="",lastRoute="";
+ private boolean openingRun;
  private final Handler handler=new Handler(Looper.getMainLooper());
  private final Runnable update=new Runnable() {
   @Override public void run() { refresh();handler.postDelayed(this,500); }
@@ -79,7 +80,7 @@ public class MainActivity extends Activity {
   status=label("Go outdoors for the best GPS signal",12,MUTED,false);hero.addView(status);
   gpsMeta=label("Fastest available GPS · no distance delay",10,MUTED,false);hero.addView(gpsMeta);gap(content,16);
   start=action("▶   START RUN",LIME,BG,v->begin());content.addView(start,new LinearLayout.LayoutParams(-1,dp(56)));
-  runActions=row();pause=action("Ⅱ   PAUSE",LIME,BG,v->command(prefs.getBoolean("paused",false)?"RESUME":"PAUSE"));
+  runActions=row();runActions.setVisibility(View.GONE);pause=action("Ⅱ   PAUSE",LIME,BG,v->command(prefs.getBoolean("paused",false)?"RESUME":"PAUSE"));
   finish=action("■   FINISH",Color.rgb(40,49,64),WHITE,v->new AlertDialog.Builder(this)
    .setTitle("Nice work. Save your run?").setMessage("Your route, distance and pace will be saved to your history.")
    .setPositiveButton("Save run",(d,w)->command("FINISH")).setNegativeButton("Keep running",null).show());
@@ -138,9 +139,16 @@ public class MainActivity extends Activity {
  }
  private void refresh() {
   boolean active=prefs.getBoolean("active",false),isPaused=prefs.getBoolean("paused",false);
+  if(active) {
+   if(!openingRun) { openingRun=true;startActivity(new Intent(this,RunActivity.class)); }
+   return;
+  }
+  String data=prefs.getString("history","[]");JSONObject latest=null;
+  try { JSONArray runs=new JSONArray(data);if(runs.length()>0) latest=runs.getJSONObject(runs.length()-1); } catch(JSONException ignored) { }
   long elapsed=prefs.getLong("accumulated",0);
   if(active && !isPaused && !prefs.getBoolean("waiting_gps",false)) elapsed+=Math.max(0,SystemClock.elapsedRealtime()-prefs.getLong("segment",SystemClock.elapsedRealtime()));
   float meters=prefs.getFloat("meters",0);
+  elapsed=latest==null?0:latest.optLong("duration",0);meters=latest==null?0:(float)latest.optDouble("meters",0);
   String amount=String.format(Locale.US,"%.3f",meters/1000.0);
   SpannableString value=new SpannableString(amount+" km");
   value.setSpan(new RelativeSizeSpan(.32f),amount.length(),value.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -154,12 +162,8 @@ public class MainActivity extends Activity {
    status.setTextColor(isPaused?MUTED:age>5 || prefs.getFloat("accuracy",999)>20?Color.rgb(251,198,112):LIME);
    gpsMeta.setText(isPaused?"Tracking and run time are paused":prefs.getInt("satellites",0)+" satellites · "+(last==0?"awaiting first fix":age<1?"updated just now":"updated "+age+"s ago"));
   } else { status.setText("Go outdoors for the best GPS signal");status.setTextColor(MUTED);gpsMeta.setText("Fastest available GPS · distance shown to 1 metre"); }
-  String data=prefs.getString("history","[]");
   if(!lastHistory.equals(data)) { lastHistory=data;renderHistory(data); }
-  String points=prefs.getString("live_route","[]");
-  if(points.equals("[]") && !active) {
-   try { JSONArray runs=new JSONArray(data);if(runs.length()>0) points=runs.getJSONObject(runs.length()-1).optJSONArray("route")==null?"[]":runs.getJSONObject(runs.length()-1).getJSONArray("route").toString(); } catch(JSONException ignored) { }
-  }
+  String points=latest==null || latest.optJSONArray("route")==null?"[]":latest.optJSONArray("route").toString();
   String marker=(active?"live:":"saved:")+points;
   if(!lastRoute.equals(marker)) {
    lastRoute=marker;try { map.setRoute(new JSONArray(points),active); } catch(JSONException ignored) { }
@@ -183,6 +187,11 @@ public class MainActivity extends Activity {
     LinearLayout info=column();info.addView(label(new SimpleDateFormat("EEE, d MMM · HH:mm",Locale.getDefault()).format(new Date(run.getLong("date"))),12,WHITE,true));
     info.addView(label(clock(run.getLong("duration"))+"  ·  "+pace(run.getLong("duration"),run.getDouble("meters"))+" /km",11,MUTED,false));card.addView(info,new LinearLayout.LayoutParams(0,-2,1));
     card.addView(label(String.format(Locale.US,"%.2f km",run.getDouble("meters")/1000),16,LIME,true));card.setOnClickListener(v->showRun(run));
+    TextView more=label("⋮",24,MUTED,true);more.setGravity(Gravity.CENTER);more.setContentDescription("Run options: view or delete");
+    more.setOnClickListener(v-> {
+     PopupMenu menu=new PopupMenu(this,more);menu.getMenu().add(0,1,0,"View details");menu.getMenu().add(0,2,1,"Delete run");
+     menu.setOnMenuItemClickListener(item-> { if(item.getItemId()==2) confirmDelete(run);else showRun(run);return true; });menu.show();
+    });card.addView(more,new LinearLayout.LayoutParams(dp(48),dp(48)));
     history.addView(card);gap(history,8);
    }
   } catch(JSONException e) { history.addView(label("Unable to read run history",13,MUTED,false)); }
@@ -194,7 +203,33 @@ public class MainActivity extends Activity {
   RouteMapView saved=new RouteMapView(this);JSONArray points=run.optJSONArray("route");saved.setRoute(points==null?new JSONArray():points,false);
   layout.addView(saved,new LinearLayout.LayoutParams(-1,dp(270)));
   layout.addView(label("© OpenStreetMap contributors · pinch to zoom",10,MUTED,false));
-  new AlertDialog.Builder(this).setTitle("Run details").setView(layout).setPositiveButton("Done",null).show();
+  new AlertDialog.Builder(this).setTitle("Run details").setView(layout).setPositiveButton("Done",null)
+   .setNegativeButton("Delete run",(d,w)->confirmDelete(run)).show();
+ }
+ private void confirmDelete(JSONObject selected) {
+  new AlertDialog.Builder(this).setTitle("Delete this run?")
+   .setMessage("This removes the saved run and its route from this phone. This cannot be undone.")
+   .setPositiveButton("Delete",(dialog,which)-> {
+    try {
+     String original=prefs.getString("history","[]");JSONArray current=new JSONArray(original);
+     if(!RunHistory.remove(current,selected)) { Toast.makeText(this,"This run is no longer in your history",Toast.LENGTH_SHORT).show();return; }
+     String oldRoute=prefs.getString("live_route","[]");float oldMeters=prefs.getFloat("meters",0);long oldTime=prefs.getLong("accumulated",0);
+     SharedPreferences.Editor edit=prefs.edit().putString("history",current.toString());
+     boolean idle=!prefs.getBoolean("active",false) && prefs.getLong("checkpoint_date",0)==0;
+     if(idle) {
+      JSONObject latest=current.length()==0?null:current.optJSONObject(current.length()-1);
+      edit.putString("live_route",latest==null || latest.optJSONArray("route")==null?"[]":latest.optJSONArray("route").toString())
+       .putFloat("meters",latest==null?0:(float)latest.optDouble("meters",0)).putLong("accumulated",latest==null?0:latest.optLong("duration",0));
+     }
+     if(!edit.commit()) {
+      SharedPreferences.Editor restore=prefs.edit().putString("history",original);
+      if(idle) restore.putString("live_route",oldRoute).putFloat("meters",oldMeters).putLong("accumulated",oldTime);
+      restore.apply();
+      Toast.makeText(this,"Could not save the deletion. Check available storage.",Toast.LENGTH_LONG).show();return;
+     }
+     refresh();Toast.makeText(this,"Run deleted",Toast.LENGTH_SHORT).show();
+    } catch(JSONException error) { Toast.makeText(this,"Could not read run history; nothing was deleted",Toast.LENGTH_LONG).show(); }
+   }).setNegativeButton("Cancel",null).show();
  }
  static String clock(long ms) { return RunMath.clock(ms); }
  static String pace(long ms,double m) { return RunMath.pace(ms,m); }
@@ -211,6 +246,6 @@ public class MainActivity extends Activity {
  }
  private int dp(int size) { return Math.round(size*getResources().getDisplayMetrics().density); }
  private void gap(LinearLayout target,int size) { View v=new View(this);target.addView(v,new LinearLayout.LayoutParams(1,dp(size))); }
- @Override protected void onResume() { super.onResume();handler.post(update); }
+ @Override protected void onResume() { super.onResume();openingRun=false;handler.post(update); }
  @Override protected void onPause() { handler.removeCallbacks(update);super.onPause(); }
 }

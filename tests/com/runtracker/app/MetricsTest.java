@@ -7,8 +7,13 @@ public class MetricsTest {
   check("4:30", RunMath.pace(270000, 1000));
   check("—", RunMath.pace(1000, 0));
   check("3:24", RunMath.pace(10000, 49));
-  System.out.println("6 run metric checks passed");
+  number(12.6,RunMath.speedKmh(3.5));
+  number(0,RunMath.speedKmh(0));
+  number(0,RunMath.speedKmh(-1));
+  number(0,RunMath.speedKmh(Double.NaN));
+  System.out.println("10 run metric checks passed");
  }
+ static void number(double expected,double actual) { if(Math.abs(expected-actual)>.000001) throw new AssertionError(expected+" != "+actual); }
  static void check(String expected, String actual) {
   if (!expected.equals(actual)) throw new AssertionError(expected + " != " + actual);
  }

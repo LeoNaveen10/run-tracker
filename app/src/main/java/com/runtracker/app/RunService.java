@@ -42,18 +42,18 @@ public class RunService extends Service implements LocationListener {
    try { route=new JSONArray(prefs.getString("live_route","[]")); } catch(JSONException e) { route=new JSONArray(); }
    waiting=route.length()==0;
    segment=route.length()>0?route.optJSONObject(route.length()-1).optInt("segment",0)+1:0;
-   foreground();persist("Run recovered · paused until you resume");checkpoints.post(checkpoint);
+   prefs.edit().putLong("speed_fix_elapsed",0).apply();foreground();persist("Run recovered · paused until you resume");checkpoints.post(checkpoint);
   } else if("START".equals(action) && startedAt==0) {
    startedAt=System.currentTimeMillis(); segmentStart=SystemClock.elapsedRealtime();
    accumulated=0; meters=0; paused=false;waiting=true; filter.reset(); route=new JSONArray(); segment=0;
-   prefs.edit().putString("live_route","[]").putLong("last_fix_elapsed",0).putInt("satellites",0).apply();
+   prefs.edit().putString("live_route","[]").putLong("last_fix_elapsed",0).putLong("speed_fix_elapsed",0).putInt("satellites",0).apply();
    foreground(); subscribe();checkpoints.post(checkpoint);
   } else if("PAUSE".equals(action) && startedAt!=0 && !paused) {
    accumulated=elapsed();
    paused=true; filter.reset(); segment++; unsubscribe(); foreground(); persist("Paused · take a breath");
   } else if("RESUME".equals(action) && startedAt!=0 && paused) {
    paused=false; segmentStart=SystemClock.elapsedRealtime();
-   prefs.edit().putLong("last_fix_elapsed",0).apply(); foreground(); subscribe();
+   prefs.edit().putLong("last_fix_elapsed",0).putLong("speed_fix_elapsed",0).apply(); foreground(); subscribe();
   } else if("FINISH".equals(action) && startedAt!=0) {
    long completed=elapsed();
    if(!saveRun(completed)) {
@@ -67,7 +67,7 @@ public class RunService extends Service implements LocationListener {
  }
  private long elapsed() { return accumulated+(paused || waiting?0:SystemClock.elapsedRealtime()-segmentStart); }
  private void foreground() {
-  PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+  PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,RunActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
   Notification n=new Notification.Builder(this,"running").setContentTitle(paused?"Run paused":"Recording your run")
    .setContentText("High-frequency GPS active · tap to view your route")
    .setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentIntent(open).setOngoing(true).build();
@@ -96,14 +96,17 @@ public class RunService extends Service implements LocationListener {
   if(paused || startedAt==0 || l.getElapsedRealtimeNanos()<segmentStart*1000000L) return;
   long now=SystemClock.elapsedRealtime();
   if(now-l.getElapsedRealtimeNanos()/1000000L>5000L) return;
-  prefs.edit().putLong("last_fix_elapsed",now).putFloat("accuracy",l.hasAccuracy()?l.getAccuracy():999).apply();
+  long sampleTime=l.getElapsedRealtimeNanos()/1000000L;
+  prefs.edit().putLong("last_fix_elapsed",sampleTime).putFloat("accuracy",l.hasAccuracy()?l.getAccuracy():999).apply();
   if(!l.hasAccuracy() || l.getAccuracy()>20) {
-   filter.reset(); segment++; persist("Weak GPS · wait for a clearer signal"); return;
+   prefs.edit().putLong("speed_fix_elapsed",0).apply();filter.reset(); segment++; persist("Weak GPS · wait for a clearer signal"); return;
   }
-  if(waiting) { waiting=false;segmentStart=now; }
   double speed=l.hasSpeed() && (!l.hasSpeedAccuracy() || l.getSpeedAccuracyMetersPerSecond()<=1.5f)?l.getSpeed():Double.NaN;
   GpsFilter.Fix fix=filter.update(l.getLatitude(),l.getLongitude(),l.getAccuracy(),speed,l.getElapsedRealtimeNanos()/1000000L);
-  if(fix.jump) { persist("GPS jump filtered · keeping your distance accurate"); return; }
+  if(fix.jump) { prefs.edit().putLong("speed_fix_elapsed",0).apply();persist("GPS jump filtered · keeping your distance accurate"); return; }
+  if(waiting && fix.record) { waiting=false;segmentStart=now; }
+  double liveSpeed=Double.isFinite(speed)?(speed<.35?0:speed):fix.speed;
+  prefs.edit().putFloat("speed_kmh",(float)RunMath.speedKmh(liveSpeed)).putLong("speed_fix_elapsed",sampleTime).apply();
   if(fix.breakSegment) segment++;
   meters+=fix.distance;
   if(fix.record) {
