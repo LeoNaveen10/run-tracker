@@ -65,6 +65,9 @@ public class RouteMapView extends View {
   invalidate();
  }
  public void changeZoom(int delta) { touched=true; zoom=Math.max(3,Math.min(19,zoom+delta));invalidate(); }
+ public void showCloseUp() {
+  fit();zoom=18;touched=true;invalidate();
+ }
  private double world() { return 256.0*(1<<zoom); }
  private float screenX(double lon) {
   double difference=RunMath.worldX(lon)-centerX;

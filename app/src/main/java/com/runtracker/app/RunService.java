@@ -16,6 +16,11 @@ public class RunService extends Service implements LocationListener {
  private int segment;
  private JSONArray route;
  private SharedPreferences prefs;
+ private double targetKm;
+ private GoalProgress goals;
+ private RunAnnouncer announcer;
+ private SplitTracker splits;
+ private JSONArray splitRows;
  private final Handler checkpoints=new Handler(Looper.getMainLooper());
  private final Runnable checkpoint=new Runnable() {
   @Override public void run() {
@@ -41,16 +46,28 @@ public class RunService extends Service implements LocationListener {
    segmentStart=SystemClock.elapsedRealtime();meters=prefs.getFloat("meters",0);paused=true;filter.reset();
    try { route=new JSONArray(prefs.getString("live_route","[]")); } catch(JSONException e) { route=new JSONArray(); }
    waiting=route.length()==0;
+   targetKm=prefs.getFloat("target_km",0);
+   boolean hasSplits=prefs.contains("live_splits");
+   try { splitRows=new JSONArray(prefs.getString("live_splits","[]")); } catch(JSONException error) { splitRows=new JSONArray(); }
+   JSONObject lastSplit=splitRows.length()==0?null:splitRows.optJSONObject(splitRows.length()-1);
+   int completed=lastSplit!=null?lastSplit.optInt("kilometre",0):hasSplits?0:(int)(meters/1000);
+   long boundary=lastSplit!=null?lastSplit.optLong("elapsed",-1):completed==0?0:-1;
+   splits=new SplitTracker(completed,boundary,meters,accumulated);
+   goals=new GoalProgress(prefs.getInt("last_announced_km",(int)(meters/1000)),prefs.getBoolean("goal_announced",false));
    segment=route.length()>0?route.optJSONObject(route.length()-1).optInt("segment",0)+1:0;
    prefs.edit().putLong("speed_fix_elapsed",0).apply();foreground();persist("Run recovered · paused until you resume");checkpoints.post(checkpoint);
   } else if("START".equals(action) && startedAt==0) {
    startedAt=System.currentTimeMillis(); segmentStart=SystemClock.elapsedRealtime();
    accumulated=0; meters=0; paused=false;waiting=true; filter.reset(); route=new JSONArray(); segment=0;
+   targetKm=intent.getDoubleExtra("target_km",5);if(!GoalProgress.validTarget(targetKm)) targetKm=5;
+   goals=new GoalProgress(0,false);
+   splitRows=new JSONArray();splits=new SplitTracker(0,0,0,0);
    prefs.edit().putString("live_route","[]").putLong("last_fix_elapsed",0).putLong("speed_fix_elapsed",0).putInt("satellites",0).apply();
    foreground(); subscribe();checkpoints.post(checkpoint);
   } else if("PAUSE".equals(action) && startedAt!=0 && !paused) {
    accumulated=elapsed();
    paused=true; filter.reset(); segment++; unsubscribe(); foreground(); persist("Paused · take a breath");
+   if(announcer!=null) announcer.stop();
   } else if("RESUME".equals(action) && startedAt!=0 && paused) {
    paused=false; segmentStart=SystemClock.elapsedRealtime();
    prefs.edit().putLong("last_fix_elapsed",0).putLong("speed_fix_elapsed",0).apply(); foreground(); subscribe();
@@ -69,10 +86,11 @@ public class RunService extends Service implements LocationListener {
  private void foreground() {
   PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,RunActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
   Notification n=new Notification.Builder(this,"running").setContentTitle(paused?"Run paused":"Recording your run")
-   .setContentText("High-frequency GPS active · tap to view your route")
+   .setContentText("GPS recording active · tap to view your run")
    .setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentIntent(open).setOngoing(true).build();
   if(Build.VERSION.SDK_INT>=29) startForeground(1,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
   else startForeground(1,n);
+  if(announcer==null) announcer=new RunAnnouncer(this);
  }
  private void subscribe() {
   persist("Finding GPS · get a clear view of the sky");
@@ -90,7 +108,9 @@ public class RunService extends Service implements LocationListener {
  private void persist(String status) {
   prefs.edit().putBoolean("active",startedAt!=0).putBoolean("paused",paused).putBoolean("waiting_gps",waiting).putLong("segment",segmentStart)
    .putLong("accumulated",accumulated).putFloat("meters",(float)meters).putString("status",status)
-   .putLong("checkpoint_date",startedAt).putLong("checkpoint_elapsed",elapsed()).apply();
+   .putLong("checkpoint_date",startedAt).putLong("checkpoint_elapsed",elapsed()).putFloat("target_km",(float)targetKm)
+   .putInt("last_announced_km",goals==null?0:goals.completed()).putBoolean("goal_announced",goals!=null && goals.reached())
+   .putString("live_splits",splitRows==null?"[]":splitRows.toString()).apply();
  }
  @Override public void onLocationChanged(Location l) {
   if(paused || startedAt==0 || l.getElapsedRealtimeNanos()<segmentStart*1000000L) return;
@@ -109,6 +129,10 @@ public class RunService extends Service implements LocationListener {
   prefs.edit().putFloat("speed_kmh",(float)RunMath.speedKmh(liveSpeed)).putLong("speed_fix_elapsed",sampleTime).apply();
   if(fix.breakSegment) segment++;
   meters+=fix.distance;
+  for(SplitTracker.Split split:splits.advance(meters,elapsed())) {
+   try { splitRows.put(new JSONObject().put("kilometre",split.kilometre).put("duration",split.duration).put("elapsed",split.elapsed)); } catch(JSONException ignored) { }
+  }
+  for(String message:goals.advance(meters,targetKm)) announcer.say(message);
   if(fix.record) {
    try {
     route.put(new JSONObject().put("latitude",l.getLatitude()).put("longitude",l.getLongitude())
@@ -121,7 +145,7 @@ public class RunService extends Service implements LocationListener {
  private boolean saveRun(long completed) {
   try {
    JSONArray history=new JSONArray(prefs.getString("history","[]"));
-   history.put(new JSONObject().put("date",startedAt).put("meters",meters).put("duration",completed).put("route",route));
+   history.put(new JSONObject().put("date",startedAt).put("meters",meters).put("duration",completed).put("route",route).put("targetKm",targetKm).put("splits",splitRows));
    return prefs.edit().putString("history",history.toString()).putBoolean("active",false)
     .putBoolean("paused",false).putLong("accumulated",completed).remove("checkpoint_date").remove("checkpoint_elapsed").commit();
   } catch(JSONException e) { return false; }
@@ -130,5 +154,5 @@ public class RunService extends Service implements LocationListener {
  @Override public void onProviderEnabled(String p) { if(!paused) persist("Finding GPS · get a clear view of the sky"); }
  @Override public void onStatusChanged(String p,int s,Bundle b) { }
  @Override public IBinder onBind(Intent i) { return null; }
- @Override public void onDestroy() { checkpoints.removeCallbacks(checkpoint);unsubscribe(); if(startedAt!=0) prefs.edit().putBoolean("active",false).apply(); super.onDestroy(); }
+ @Override public void onDestroy() { checkpoints.removeCallbacks(checkpoint);unsubscribe();if(announcer!=null) announcer.close(); if(startedAt!=0) prefs.edit().putBoolean("active",false).apply(); super.onDestroy(); }
 }

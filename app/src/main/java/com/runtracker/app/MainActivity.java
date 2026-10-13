@@ -124,18 +124,36 @@ public class MainActivity extends Activity {
   if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},2);return;
   }
-  command(prefs.getLong("checkpoint_date",0)>0?"RECOVER":"START");
+  chooseTarget();
  }
  @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results) {
   super.onRequestPermissionsResult(code,permissions,results);
   if(code==1 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED) begin();
-  else if(code==2) command(prefs.getLong("checkpoint_date",0)>0?"RECOVER":"START");
+  else if(code==2) chooseTarget();
   else Toast.makeText(this,"Precise location is needed to record your route",Toast.LENGTH_LONG).show();
  }
  private void command(String action) {
   Intent intent=new Intent(this,RunService.class).setAction(action);
+  if("START".equals(action)) intent.putExtra("target_km",(double)prefs.getFloat("last_target_km",5));
   if("START".equals(action) || "RECOVER".equals(action)) startForegroundService(intent); else startService(intent);
   handler.postDelayed(()->refresh(),200);
+ }
+ private void chooseTarget() {
+  if(prefs.getLong("checkpoint_date",0)>0) { command("RECOVER");return; }
+  LinearLayout layout=column();layout.setPadding(dp(22),dp(10),dp(22),dp(10));
+  layout.addView(label("Choose your distance: 5–10 km",14,WHITE,false));
+  EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+  input.setText(GoalProgress.number(prefs.getFloat("last_target_km",5)));input.setSelectAllOnFocus(true);input.setHint("Target in km");input.setContentDescription("Run target in kilometres, between 5 and 10");layout.addView(input);
+  LinearLayout presets=row();
+  presets.addView(action("5 km",CARD,LIME,v->input.setText("5")),new LinearLayout.LayoutParams(0,dp(48),1));
+  presets.addView(action("10 km",CARD,LIME,v->input.setText("10")),new LinearLayout.LayoutParams(0,dp(48),1));layout.addView(presets);
+  AlertDialog dialog=new AlertDialog.Builder(this).setTitle("What's your target?").setView(layout).setPositiveButton("Start run",null).setNegativeButton("Cancel",null).create();
+  dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v-> {
+   double goal;try { goal=Double.parseDouble(input.getText().toString().trim()); } catch(NumberFormatException error) { input.setError("Enter a target from 5 to 10 km");return; }
+   if(!GoalProgress.validTarget(goal)) { input.setError("Enter a target from 5 to 10 km");return; }
+   goal=Math.round(goal*100)/100.0;
+   prefs.edit().putFloat("last_target_km",(float)goal).apply();dialog.dismiss();command("START");
+  }));dialog.show();
  }
  private void refresh() {
   boolean active=prefs.getBoolean("active",false),isPaused=prefs.getBoolean("paused",false);
@@ -149,7 +167,7 @@ public class MainActivity extends Activity {
   if(active && !isPaused && !prefs.getBoolean("waiting_gps",false)) elapsed+=Math.max(0,SystemClock.elapsedRealtime()-prefs.getLong("segment",SystemClock.elapsedRealtime()));
   float meters=prefs.getFloat("meters",0);
   elapsed=latest==null?0:latest.optLong("duration",0);meters=latest==null?0:(float)latest.optDouble("meters",0);
-  String amount=String.format(Locale.US,"%.3f",meters/1000.0);
+  String amount=String.format(Locale.US,"%.2f",meters/1000.0);
   SpannableString value=new SpannableString(amount+" km");
   value.setSpan(new RelativeSizeSpan(.32f),amount.length(),value.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
   value.setSpan(new ForegroundColorSpan(MUTED),amount.length(),value.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);distance.setText(value);
@@ -161,7 +179,7 @@ public class MainActivity extends Activity {
    status.setText(isPaused?prefs.getString("status","Paused"):age>5 && last!=0?"GPS signal lost · finding a fresh fix":prefs.getString("status","Finding GPS"));
    status.setTextColor(isPaused?MUTED:age>5 || prefs.getFloat("accuracy",999)>20?Color.rgb(251,198,112):LIME);
    gpsMeta.setText(isPaused?"Tracking and run time are paused":prefs.getInt("satellites",0)+" satellites · "+(last==0?"awaiting first fix":age<1?"updated just now":"updated "+age+"s ago"));
-  } else { status.setText("Go outdoors for the best GPS signal");status.setTextColor(MUTED);gpsMeta.setText("Fastest available GPS · distance shown to 1 metre"); }
+  } else { status.setText("Go outdoors for the best GPS signal");status.setTextColor(MUTED);gpsMeta.setText("Fastest available GPS · distance shown to two decimals"); }
   if(!lastHistory.equals(data)) { lastHistory=data;renderHistory(data); }
   String points=latest==null || latest.optJSONArray("route")==null?"[]":latest.optJSONArray("route").toString();
   String marker=(active?"live:":"saved:")+points;
@@ -198,12 +216,36 @@ public class MainActivity extends Activity {
  }
  private void showRun(JSONObject run) {
   LinearLayout layout=column();layout.setPadding(dp(18),dp(12),dp(18),dp(16));layout.setBackgroundColor(BG);
-  layout.addView(label(String.format(Locale.US,"%.3f km",run.optDouble("meters")/1000),32,LIME,true));
+  layout.addView(label(String.format(Locale.US,"%.2f km",run.optDouble("meters")/1000),32,LIME,true));
+  layout.addView(label(new SimpleDateFormat("EEE, d MMM yyyy · HH:mm",Locale.getDefault()).format(new Date(run.optLong("date"))),12,MUTED,false));
   layout.addView(label(clock(run.optLong("duration"))+"  ·  "+pace(run.optLong("duration"),run.optDouble("meters"))+" /km",14,WHITE,false));gap(layout,12);
   RouteMapView saved=new RouteMapView(this);JSONArray points=run.optJSONArray("route");saved.setRoute(points==null?new JSONArray():points,false);
+  saved.showCloseUp();
   layout.addView(saved,new LinearLayout.LayoutParams(-1,dp(270)));
+  LinearLayout mapTools=row();
+  mapTools.addView(action("−",CARD,WHITE,v->saved.changeZoom(-1)),new LinearLayout.LayoutParams(0,dp(48),1));
+  mapTools.addView(action("Fit route",CARD,LIME,v->saved.fit()),new LinearLayout.LayoutParams(0,dp(48),2));
+  mapTools.addView(action("+",CARD,WHITE,v->saved.changeZoom(1)),new LinearLayout.LayoutParams(0,dp(48),1));layout.addView(mapTools);
+  double goal=run.optDouble("targetKm",0);if(goal>0) layout.addView(label("Target: "+GoalProgress.number(goal)+" km",12,LIME,false));
   layout.addView(label("© OpenStreetMap contributors · pinch to zoom",10,MUTED,false));
-  new AlertDialog.Builder(this).setTitle("Run details").setView(layout).setPositiveButton("Done",null)
+  layout.addView(action("Share route & metrics",LIME,BG,v->ShareCard.share(this,run,saved)),new LinearLayout.LayoutParams(-1,dp(48)));
+  gap(layout,16);layout.addView(label("Kilometre splits",18,WHITE,true));
+  JSONArray splits=run.optJSONArray("splits");
+  if(splits==null || splits.length()==0) layout.addView(label(splits==null?"Splits are available for new runs from this update.":"No complete kilometre recorded yet.",12,MUTED,false));
+  else {
+   long fastest=Long.MAX_VALUE;int fastestIndex=-1;
+   for(int i=0;i<splits.length();i++) {
+    JSONObject split=splits.optJSONObject(i);if(split==null) continue;long duration=split.optLong("duration",-1);
+    if(duration>=0 && duration<fastest) { fastest=duration;fastestIndex=i; }
+   }
+   for(int i=0;i<splits.length();i++) {
+    JSONObject split=splits.optJSONObject(i);if(split==null) continue;long duration=split.optLong("duration",-1);
+    String value=duration<0?"Not recorded":RunMath.pace(duration,1000)+" min/km";
+    layout.addView(label(split.optInt("kilometre")+" km  ·  "+value+(i==fastestIndex?"  ·  FASTEST":""),14,i==fastestIndex?LIME:WHITE,false));
+   }
+  }
+  ScrollView scroller=new ScrollView(this);scroller.addView(layout);
+  new AlertDialog.Builder(this).setTitle("Run details").setView(scroller).setPositiveButton("Done",null)
    .setNegativeButton("Delete run",(d,w)->confirmDelete(run)).show();
  }
  private void confirmDelete(JSONObject selected) {

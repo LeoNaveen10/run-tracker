@@ -6,7 +6,7 @@ No accounts, backend, advertising or paid API keys are needed.
 
 ## Install
 
-Download [`downloads/RunTracker-0.4.0.apk`](downloads/RunTracker-0.4.0.apk) and open
+Download [`downloads/RunTracker-0.5.0.apk`](downloads/RunTracker-0.5.0.apk) and open
 it on your phone. Allow installation from the app opening it if Android asks.
 Grant **precise location**, enable GPS and use it outdoors. This is a test APK,
 signed with the same debug key as earlier versions: install over your existing app to
@@ -14,25 +14,36 @@ preserve your completed run history. Do not uninstall first.
 
 ## Running
 
-- Tap **Start run** to open a dedicated recording page with only **current pace
-  (min/km), distance (km), elapsed time and the map**, plus pause/resume and finish
-  controls. Time starts after the first usable GPS fix, not while waiting
-  for the receiver to acquire a signal.
-- GPS requests use zero minimum time and zero minimum movement, accepting fixes
-  at the receiver's native rate (typically around one per second). Screen metrics
-  refresh twice per second. Distance is displayed to one metre; display precision
-  does not imply one-metre GPS accuracy.
-- Pause, resume, then finish and save. Pauses are excluded from run time and GPS
-  route segments are separated so movement during a pause does not add distance.
-- View live and saved routes. Drag to pan, pinch or use +/- to zoom, and tap
-  **Fit route** to recenter. Tap a run in history to open its details.
-- Current pace means the time to cover **1 km at your current speed**: `5:00`
-  min/km means five minutes per kilometre. It uses the latest GPS speed, not
-  your whole-run average. Paused, stationary or stale GPS readings show `—`.
-  The run page keeps the screen on while visible.
-- Delete saved runs through the **⋮** menu on a recent-run card or **Delete run**
-  in its details. Confirmation is required. The run, route, dashboard preview
-  and weekly total update together; interrupted/active recording data is preserved.
+- Choose a **5–10 km target** before each new run (5 km and 10 km presets,
+  with fractional targets allowed). Recovery keeps the original target.
+- The dedicated recording page has **four large figures: distance, current pace,
+  run time and target**. There is no map on the live page. The screen stays on
+  while visible; pause/resume and finish controls remain available.
+- All distance displays use **two decimals**, e.g. **1.22 km**. Stored distance,
+  time and pace calculations are unchanged. Time starts after a usable GPS fix.
+- Current pace means the time to cover **1 km at your current speed**, in min/km.
+  Paused, stationary or stale readings show an em dash.
+- Every completed kilometre triggers a spoken update, such as **“2 kilometres
+  done. 3 kilometres to go.”** Target completion is announced once, and you can
+  continue running. Voice uses the phone's English text-to-speech engine and
+  media volume; if speech is unavailable the app plays a beep instead.
+- Pause/recovery preserve milestone state to avoid announcing old kilometres
+  again. Progress and targets are retained with interrupted runs.
+- Tap any saved run to open its **date, distance, time, average pace and route**.
+  The map opens at street-level zoom; pan, pinch, use +/- or **Fit route** to see
+  the complete recorded route. Old saved runs remain available after updating.
+- Saved-run details now include **per-kilometre splits**, with the fastest
+  complete kilometre highlighted. Crossing times are interpolated between
+  accepted GPS fixes using the existing pause-excluding run timer. Splits are
+  checkpointed for recovery. Older logs keep their maps and metrics; historical
+  split times are not invented when they were never recorded.
+- **Share route & metrics** creates a PNG card with the date, metrics, target,
+  current map view and OpenStreetMap attribution, then opens Android's share
+  chooser. Use Fit route and let the tiles load before sharing if you want the
+  whole route visible. The chooser decides which app receives the image.
+- Delete saved runs through the **⋮** menu or **Delete run** in details, with
+  confirmation. Dashboard totals and previews update without affecting an
+  interrupted recording.
 
 ## Reliability and GPS limits
 
@@ -94,7 +105,9 @@ separate protected release-signing setup; the APK here is a debug-signed build.
 
 ## Validation
 
-The 48 JVM checks cover run time, average/current pace, speed units, saved-run deletion,
+The 79 JVM checks cover run time, average/current pace, speed units, target validation, milestone announcements,
+recovery/duplicate/fractional goal boundaries, split interpolation, stationary
+time, multiple boundaries, recovery and legacy unknown splits, saved-run deletion,
 appended/duplicate/changed-history safety, successive running fixes, stationary
 drift, jumps, recovery after a rejected fix, duplicate timestamps, reception
 gaps, invalid coordinates, pause/reset boundaries, geodesic distance and map
@@ -109,3 +122,9 @@ requests. A complete runtime smoke test of the final APK remains unverified.
 Device acceptance checks: start outdoors, wait for the GPS indicator, run a
 known route, pause/resume, lock/unlock the screen, save, inspect history, and
 force-close/reopen during a separate run to check paused checkpoint recovery.
+
+Version 0.5.0 voice playback, new layouts and image sharing still need physical-device
+acceptance testing. Previous distance, time and pace behavior was confirmed by the
+user on Android 12; other Android versions meet the minimum SDK requirement but
+have not been device-tested. Shared images use a private read-only content provider
+with a temporary URI grant to the selected app; no storage permission is needed.

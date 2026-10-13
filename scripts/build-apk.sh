@@ -9,7 +9,7 @@ out="$PWD/build"
 mkdir -p "$out/classes" "$out/dex" "$out/resources"
 find "$out/classes" "$out/dex" "$out/resources" -type f -delete
 "$tools/aapt2" compile --dir app/src/main/res -o "$out/resources"
-"$tools/aapt2" link -o "$out/unsigned.apk" -I "$platform" --manifest app/src/main/AndroidManifest.xml --min-sdk-version 26 --target-sdk-version 35 --version-code 4 --version-name 0.4.0 "$out/resources"/*.flat
+"$tools/aapt2" link -o "$out/unsigned.apk" -I "$platform" --manifest app/src/main/AndroidManifest.xml --min-sdk-version 26 --target-sdk-version 35 --version-code 5 --version-name 0.5.0 "$out/resources"/*.flat
 find app/src/main/java -name '*.java' -print > "$out/sources.txt"
 java -jar "$compiler" -8 -bootclasspath "$platform:$tools/core-lambda-stubs.jar" -d "$out/classes" @"$out/sources.txt"
 python3 - "$out" <<'PY'
