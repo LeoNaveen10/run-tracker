@@ -6,7 +6,7 @@ No accounts, backend, advertising or paid API keys are needed.
 
 ## Install
 
-Download [`downloads/RunTracker-0.5.0.apk`](downloads/RunTracker-0.5.0.apk) and open
+Download [`downloads/RunTracker-0.6.0.apk`](downloads/RunTracker-0.6.0.apk) and open
 it on your phone. Allow installation from the app opening it if Android asks.
 Grant **precise location**, enable GPS and use it outdoors. This is a test APK,
 signed with the same debug key as earlier versions: install over your existing app to
@@ -14,8 +14,10 @@ preserve your completed run history. Do not uninstall first.
 
 ## Running
 
-- Choose a **5–10 km target** before each new run (5 km and 10 km presets,
-  with fractional targets allowed). Recovery keeps the original target.
+- Choose a target before each new run: **5 km and 10 km presets**, any positive
+  custom distance such as **1, 2, 3 or 4 km**, and **+2 / +5 / +10 km** buttons
+  that add to the current selection. Fractional targets are supported to two
+  decimals (minimum 0.01 km). Recovery keeps the original target.
 - The dedicated recording page has **four large figures: distance, current pace,
   run time and target**. There is no map on the live page. The screen stays on
   while visible; pause/resume and finish controls remain available.
@@ -105,7 +107,7 @@ separate protected release-signing setup; the APK here is a debug-signed build.
 
 ## Validation
 
-The 79 JVM checks cover run time, average/current pace, speed units, target validation, milestone announcements,
+The 86 JVM checks cover run time, average/current pace, speed units, target validation, milestone announcements,
 recovery/duplicate/fractional goal boundaries, split interpolation, stationary
 time, multiple boundaries, recovery and legacy unknown splits, saved-run deletion,
 appended/duplicate/changed-history safety, successive running fixes, stationary
@@ -123,7 +125,7 @@ Device acceptance checks: start outdoors, wait for the GPS indicator, run a
 known route, pause/resume, lock/unlock the screen, save, inspect history, and
 force-close/reopen during a separate run to check paused checkpoint recovery.
 
-Version 0.5.0 voice playback, new layouts and image sharing still need physical-device
+Version 0.6.0 custom targets and increment buttons, voice playback, new layouts and image sharing still need physical-device
 acceptance testing. Previous distance, time and pace behavior was confirmed by the
 user on Android 12; other Android versions meet the minimum SDK requirement but
 have not been device-tested. Shared images use a private read-only content provider

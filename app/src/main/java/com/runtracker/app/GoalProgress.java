@@ -4,7 +4,11 @@ public final class GoalProgress {
  private int completed;
  private boolean reached;
  public GoalProgress(int completed,boolean reached) { this.completed=Math.max(0,completed);this.reached=reached; }
- public static boolean validTarget(double km) { return Double.isFinite(km) && km>=5 && km<=10; }
+ public static boolean validTarget(double km) { return Double.isFinite(km) && km>=.01 && km<=Float.MAX_VALUE; }
+ public static double addTarget(double current,double increment) {
+  if(!Double.isFinite(current) || current<0 || !Double.isFinite(increment) || increment<=0) return Double.NaN;
+  double result=current+increment;return validTarget(result)?result:Double.NaN;
+ }
  public static String number(double km) {
   String value=String.format(Locale.US,"%.2f",km);
   while(value.endsWith("0")) value=value.substring(0,value.length()-1);

@@ -4,7 +4,15 @@ public class GoalProgressTest {
  private static int checks;
  public static void main(String[] args) {
   check(GoalProgress.validTarget(5) && GoalProgress.validTarget(10),"Target endpoints allowed");
-  check(!GoalProgress.validTarget(4.9) && !GoalProgress.validTarget(10.1),"Out-of-range targets rejected");
+  check(GoalProgress.validTarget(1) && GoalProgress.validTarget(2) && GoalProgress.validTarget(3) && GoalProgress.validTarget(4),"Short custom targets accepted");
+  check(GoalProgress.validTarget(10.1) && GoalProgress.validTarget(21.1),"Custom targets above presets accepted");
+  check(!GoalProgress.validTarget(0) && !GoalProgress.validTarget(-1),"Nonpositive targets rejected");
+  check(GoalProgress.addTarget(5,2)==7 && GoalProgress.addTarget(7,5)==12 && GoalProgress.addTarget(12,10)==22,"Add buttons accumulate instead of replacing target");
+  check(GoalProgress.addTarget(0,2)==2,"Empty target can start with an increment");
+  check(Math.abs(GoalProgress.addTarget(1.25,2)-3.25)<.00001,"Fractional target survives increment");
+  check(Double.isNaN(GoalProgress.addTarget(-1,2)),"Invalid input cannot be incremented");
+  GoalProgress shortRun=new GoalProgress(0,false);
+  check(shortRun.advance(1000,1).get(0).contains("Target reached"),"One-kilometre custom target completes correctly");
   check(!GoalProgress.validTarget(Double.NaN),"Invalid target rejected");
   check("5.25".equals(GoalProgress.number(5.25)),"Fractional goal has correct displayed precision");
   GoalProgress goal=new GoalProgress(0,false);

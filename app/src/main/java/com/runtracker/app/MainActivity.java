@@ -141,17 +141,25 @@ public class MainActivity extends Activity {
  private void chooseTarget() {
   if(prefs.getLong("checkpoint_date",0)>0) { command("RECOVER");return; }
   LinearLayout layout=column();layout.setPadding(dp(22),dp(10),dp(22),dp(10));
-  layout.addView(label("Choose your distance: 5–10 km",14,WHITE,false));
+  layout.addView(label("Choose 5 or 10 km, or enter your own target",14,WHITE,false));
   EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-  input.setText(GoalProgress.number(prefs.getFloat("last_target_km",5)));input.setSelectAllOnFocus(true);input.setHint("Target in km");input.setContentDescription("Run target in kilometres, between 5 and 10");layout.addView(input);
+  input.setText(GoalProgress.number(prefs.getFloat("last_target_km",5)));input.setSelectAllOnFocus(true);input.setHint("Custom target in km, e.g. 1, 2, 3 or 4");input.setContentDescription("Custom run target in kilometres");layout.addView(input);
   LinearLayout presets=row();
   presets.addView(action("5 km",CARD,LIME,v->input.setText("5")),new LinearLayout.LayoutParams(0,dp(48),1));
   presets.addView(action("10 km",CARD,LIME,v->input.setText("10")),new LinearLayout.LayoutParams(0,dp(48),1));layout.addView(presets);
+  LinearLayout additions=row();
+  for(int increment:new int[]{2,5,10}) additions.addView(action("+"+increment+" km",CARD,LIME,v-> {
+   String typed=input.getText().toString().trim();double current;
+   try { current=typed.isEmpty()?0:Double.parseDouble(typed); } catch(NumberFormatException error) { input.setError("Enter a valid distance first");return; }
+   double total=GoalProgress.addTarget(current,increment);
+   if(!GoalProgress.validTarget(total)) { input.setError("Enter a positive distance");return; }
+   input.setText(GoalProgress.number(total));
+  }),new LinearLayout.LayoutParams(0,dp(48),1));layout.addView(additions);
   AlertDialog dialog=new AlertDialog.Builder(this).setTitle("What's your target?").setView(layout).setPositiveButton("Start run",null).setNegativeButton("Cancel",null).create();
   dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v-> {
-   double goal;try { goal=Double.parseDouble(input.getText().toString().trim()); } catch(NumberFormatException error) { input.setError("Enter a target from 5 to 10 km");return; }
-   if(!GoalProgress.validTarget(goal)) { input.setError("Enter a target from 5 to 10 km");return; }
-   goal=Math.round(goal*100)/100.0;
+   double goal;try { goal=Double.parseDouble(input.getText().toString().trim()); } catch(NumberFormatException error) { input.setError("Enter a positive target in km");return; }
+   if(!GoalProgress.validTarget(goal)) { input.setError("Enter a positive target (minimum 0.01 km)");return; }
+   goal=java.math.BigDecimal.valueOf(goal).setScale(2,java.math.RoundingMode.HALF_UP).doubleValue();
    prefs.edit().putFloat("last_target_km",(float)goal).apply();dialog.dismiss();command("START");
   }));dialog.show();
  }
