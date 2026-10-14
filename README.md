@@ -1,12 +1,12 @@
 # Run Tracker
 
-A native Android app for **outdoor running**, with a dark dashboard, lime accents,
+A native Android app for **outdoor running**, with a light dashboard, orange accents,
 live GPS diagnostics and an interactive route map. Android 8+; Android 12 supported.
 No accounts, backend, advertising or paid API keys are needed.
 
 ## Install
 
-Download [`downloads/RunTracker-0.6.0.apk`](downloads/RunTracker-0.6.0.apk) and open
+Download [`downloads/RunTracker-0.7.0.apk`](downloads/RunTracker-0.7.0.apk) and open
 it on your phone. Allow installation from the app opening it if Android asks.
 Grant **precise location**, enable GPS and use it outdoors. This is a test APK,
 signed with the same debug key as earlier versions: install over your existing app to
@@ -24,7 +24,10 @@ preserve your completed run history. Do not uninstall first.
 - All distance displays use **two decimals**, e.g. **1.22 km**. Stored distance,
   time and pace calculations are unchanged. Time starts after a usable GPS fix.
 - Current pace means the time to cover **1 km at your current speed**, in min/km.
-  Paused, stationary or stale readings show an em dash.
+  Speed is averaged over an eight-second rolling window; the pace display refreshes
+  every five seconds. It warms up for five seconds after starting/resuming or losing
+  GPS. Distance and time still refresh normally. Paused, stationary, warming-up or
+  stale readings show an em dash.
 - Every completed kilometre triggers a spoken update, such as **“2 kilometres
   done. 3 kilometres to go.”** Target completion is announced once, and you can
   continue running. Voice uses the phone's English text-to-speech engine and
@@ -40,9 +43,13 @@ preserve your completed run history. Do not uninstall first.
   checkpointed for recovery. Older logs keep their maps and metrics; historical
   split times are not invented when they were never recorded.
 - **Share route & metrics** creates a PNG card with the date, metrics, target,
-  current map view and OpenStreetMap attribution, then opens Android's share
-  chooser. Use Fit route and let the tiles load before sharing if you want the
-  whole route visible. The chooser decides which app receives the image.
+  full fitted route and OpenStreetMap attribution, then opens Android's share
+  chooser. The light card uses a time-of-day title, a large orange-route map and
+  a four-metric grid inspired by the supplied reference. A target-completion banner
+  appears only when earned; no unrecorded calorie, elevation or PR claims are added.
+  Export waits up to ten seconds for visible tiles, then offers an explicit outline
+  fallback if offline. Start/end locations are included; there is no privacy badge.
+  The chooser decides which app receives the image.
 - Delete saved runs through the **⋮** menu or **Delete run** in details, with
   confirmation. Dashboard totals and previews update without affecting an
   interrupted recording.
@@ -107,13 +114,14 @@ separate protected release-signing setup; the APK here is a debug-signed build.
 
 ## Validation
 
-The 86 JVM checks cover run time, average/current pace, speed units, target validation, milestone announcements,
+The 104 JVM checks cover run time, average/current pace, speed units, target validation, milestone announcements,
 recovery/duplicate/fractional goal boundaries, split interpolation, stationary
 time, multiple boundaries, recovery and legacy unknown splits, saved-run deletion,
 appended/duplicate/changed-history safety, successive running fixes, stationary
 drift, jumps, recovery after a rejected fix, duplicate timestamps, reception
 gaps, invalid coordinates, pause/reset boundaries, geodesic distance and map
-projection. The build checks the APK signature and metadata. A map tile request
+projection, rolling pace warmup, time-weighted irregular samples, publication cadence,
+speed changes, stationary pace, invalid samples and reset/gap behavior. The build checks the APK signature and metadata. A map tile request
 with the app's User-Agent succeeded. These checks are not a substitute for
 outdoor GPS and screen-off testing on a physical device.
 
@@ -125,8 +133,15 @@ Device acceptance checks: start outdoors, wait for the GPS indicator, run a
 known route, pause/resume, lock/unlock the screen, save, inspect history, and
 force-close/reopen during a separate run to check paused checkpoint recovery.
 
-Version 0.6.0 custom targets and increment buttons, voice playback, new layouts and image sharing still need physical-device
-acceptance testing. Previous distance, time and pace behavior was confirmed by the
+Version 0.7.0 pace smoothing, refreshed layouts and full-route sharing still need
+physical-device acceptance testing. Previous distance, time and pace behavior was confirmed by the
 user on Android 12; other Android versions meet the minimum SDK requirement but
 have not been device-tested. Shared images use a private read-only content provider
 with a temporary URI grant to the selected app; no storage permission is needed.
+
+## Code formatting
+
+All app and test Java files use google-java-format 1.24.0 (AOSP style).
+Run `bash scripts/format-code.sh` to apply the same format; the pinned formatter
+is downloaded outside the repository and checksum-verified. XML resources and
+shell scripts are also formatted for readable maintenance.
